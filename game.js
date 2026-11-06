@@ -943,7 +943,7 @@
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') modalRoot.innerHTML = ''; });
 
   if (devMode || params.get('debug')) {
-    window.__JC = { get src() { return src; }, get S() { return S; }, go };
+    window.__JC = { get src() { return src; }, get S() { return S; }, go, audio: A };
   }
   render();
 })();
