@@ -198,7 +198,7 @@ window.CASE = {
 
     { id: 'meta1', type: 'meta', act: '第四天', next: 'd8' },
 
-    { id: 'd8', type: 'chat', act: '第四天', thread: 'wang1', next: 'n4' },
+    { id: 'd8', type: 'chat', act: '第四夜', thread: 'wang1', next: 'n4' },
 
     { id: 's7', type: 'text', act: '第五天', lines: [
       '第五天早上，你在枕头边发现一根头发。',
@@ -520,7 +520,7 @@ window.CASE = {
   endings: {
     A: { title: '报警', lines: [
       '你报了警。',
-      '警察来了，两个，一个在楼下等，一个跟你上楼。他们打开检修口，手电照进去。',
+      '来了两个警察，一个在楼下等，一个跟你上楼。他们打开检修口，手电照进去。',
       '空的。',
       '床垫、水瓶、照片，什么都没有。只有一层很厚的灰。',
       '房东在电话里说：「我就说吧，顶楼哪来的人。」',
