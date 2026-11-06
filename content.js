@@ -5,6 +5,10 @@ window.CASE = {
     subtitle: '501 的第一夜',
     version: '0.1',
     minutes: '约 40 分钟',
+    door: '第 5 层 · 501',
+    big: '501',
+    pitch: '你楼上是天台。那声音是谁？',
+    kind: '网页解谜 · 心理惊悚',
   },
 
   plan: {
@@ -79,6 +83,7 @@ window.CASE = {
       '她翻登记本的手停了一下，说：「有，不过封了，进不去的。」',
       '你问她为什么封。',
       '她说：「不知道，我来的时候就这样。」',
+      '你顺口问，有没有这几年的检修记录。她翻了半天，抽出一本旧登记单。',
     ], next: 'doc1' },
 
     { id: 'doc1', type: 'doc', act: '第二天', doc: 'repair', next: 'c5' },
@@ -93,6 +98,7 @@ window.CASE = {
       '「最短的那个，住了十一天。」',
       '你问为什么。',
       '他说：「他们说楼上吵。」',
+      '他弹了弹烟灰：「门卫室那台机器，能存半个月。想看就来看。」',
     ], next: 'doc2' },
 
     { id: 'doc2', type: 'doc', act: '第二天', doc: 'parcel', next: 'n2' },
@@ -116,7 +122,13 @@ window.CASE = {
       '你想起老周说过，监控能存半个月。',
     ], next: 'mon1' },
 
-    { id: 'mon1', type: 'monitor', act: '第二夜', title: 'B 座 · 楼梯间', next: 'c2' },
+    { id: 'mon1', type: 'monitor', act: '第二夜', title: '501 栋 · 一楼门卫室', baseTime: '02:58',
+      intro: '你溜到楼下门卫室。老周睡着了，显示器还亮着。你拖动进度条，停在 02:58。',
+      note: [
+        '画面右下角，楼梯上多了一个人影。**红色**的，低着头，走得很慢。',
+        '他从五楼下来，走到二楼，就再也没出现过。同一时间，电梯没有动过。',
+      ],
+      next: 'c2' },
 
     { id: 'c2', type: 'chat', act: '第二夜', thread: 'group2', next: 's6' },
 
@@ -156,13 +168,13 @@ window.CASE = {
     { id: 'hatch0', type: 'text', act: '第三夜', lines: [
       '盖板上挂着一把四位密码锁。',
       '锁是新的，锁扣上有一点干掉的泥。',
-      '你忽然想起，那些数字反复出现过：群聊、快递单、押金。',
+      '你忽然想起，那些数字反复出现过：群聊、快递单、维修单。',
       '空着的那个年份。',
     ], next: 'gate' },
 
     { id: 'gate', type: 'gate', act: '第三夜', next: 'hatch1' },
 
-    { id: 'hatch1', type: 'hatch', act: '第三夜', next: 'd6' },
+    { id: 'hatch1', type: 'hatch', act: '第三夜', title: '上面', next: 'd6' },
 
     { id: 'd6', type: 'text', act: '第四天', lines: [
       '你没有报警。你说不清为什么。',
@@ -186,7 +198,7 @@ window.CASE = {
 
     { id: 'meta1', type: 'meta', act: '第四天', next: 'd8' },
 
-    { id: 'd8', type: 'chat', act: '第四天', thread: 'wang1', next: 's7' },
+    { id: 'd8', type: 'chat', act: '第四天', thread: 'wang1', next: 'n4' },
 
     { id: 's7', type: 'text', act: '第五天', lines: [
       '第五天早上，你在枕头边发现一根头发。',
@@ -195,7 +207,7 @@ window.CASE = {
       '你已经记不清，上一次一觉睡到天亮是什么时候了。',
       '你抬头看天花板。',
       '裂缝比昨天长了一点。',
-    ], next: 'n4' },
+    ], next: 'd9' },
 
     { id: 'n4', type: 'listen', act: '第四夜', night: 4, title: '第四夜', time: '03:14',
       intro: [
@@ -212,10 +224,10 @@ window.CASE = {
       ],
       next: 'c4' },
 
-    { id: 'c4', type: 'chat', act: '第四夜', thread: 'wang2', next: 'd9' },
+    { id: 'c4', type: 'chat', act: '第四夜', thread: 'wang2', next: 's7' },
 
     { id: 'd9', type: 'text', act: '第五天', lines: [
-      '你照他说的，把 501 的门牌摘了下来。',
+      '你把 501 的门牌摘了下来。',
       '背面有一行很淡的铅笔字，被雨泡过，几乎看不清：',
       '「别抬头。」',
       '你站在门口，站了很久。',
@@ -250,10 +262,10 @@ window.CASE = {
     group1: {
       title: '501 栋业主群', count: 23, kind: 'group',
       messages: [
-        { who: '402 老陈', time: '23:52', text: '501 新邻居？昨晚是不是有拖东西的声音？' },
+        { who: '402 老陈', time: '23:52', text: '501 新邻居？刚才是不是有拖东西的声音？' },
         { who: '物业-小周', time: '23:53', text: '5 楼以上是设备层，进不去的，管道热胀冷缩，正常。' },
         { who: '401 阿姨', time: '23:55', text: '正常什么呀，我家天花板也响，都三个月了。' },
-        { who: '房东 王姐', time: '23:58', text: '小 X，住得还习惯吗？有事随时找我。' },
+        { who: '房东 王姐', time: '23:58', text: '住得还习惯吗？有事随时找我。' },
       ],
       choices: [
         { text: '「是有点声音，在卧室天花板上。」', tension: 1, flag: 'spoke',
@@ -320,7 +332,7 @@ window.CASE = {
     landlord1: {
       title: '房东 王姐', count: 2, kind: 'private',
       messages: [
-        { who: '房东 王姐', time: '13:40', text: '小 X，你那边的天花板，没什么事吧？' },
+        { who: '房东 王姐', time: '13:40', text: '你那边的天花板，没什么事吧？' },
         { who: '你', time: '13:41', text: '有点声音。' },
         { who: '房东 王姐', time: '13:42', text: '老房子都这样。' },
         { who: '房东 王姐', time: '13:42', text: '你千万别去动那个检修口。' },
@@ -418,7 +430,7 @@ window.CASE = {
       title: '【求助】有没有人住过 501 栋 5 楼',
       meta: '本地论坛 · 2019-12-21 · 浏览 1,204',
       body: [
-        '楼主：我租了 501，顶楼。楼上天天半夜拖东西，物业说是设备层，可我上去看过，天台门是锁的。',
+        '楼主：我买了 501，顶楼。楼上天天半夜拖东西，物业说是设备层，可我上去看过，天台门是锁的。',
         '1 楼：我也住过那栋，五楼确实怪。',
         '3 楼：建议搬。',
         '7 楼：楼主还在吗？',
@@ -462,7 +474,7 @@ window.CASE = {
   gate: {
     prompt: '四位密码。提示：这间屋子真正空着的那个年份。',
     answers: ['2019'],
-    hint: '群聊、快递单、押金——都指向 2019。',
+    hint: '群聊、快递单、维修单——都指向 2019。',
     wrong: '锁没动。头顶传来一声很轻的响动，像是有人换了个姿势。',
   },
 
@@ -483,13 +495,14 @@ window.CASE = {
   },
 
   metaScene: {
+    reveal: '你抬起头，看见墙上那台老钟——秒针还在走，走的却是七年前的时间。',
     lines: [
       '你退到客厅，手机掉在地上，屏幕亮着。',
       '你捡起来，看见锁屏上的时间。',
-      '它和墙上那台老钟，差了整整四年。',
+      '它和墙上那台老钟，差了整整七年。',
       '你打开日历，确认了三遍。',
       '这里是 {date}，{time}。',
-      '你忽然想起，签合同那天，房东写日期写的是 2026 年。',
+      '你忽然想起，签合同那天，房东写日期写的是 2019 年。',
       '你当时以为她写错了。',
     ],
   },
@@ -529,8 +542,8 @@ window.CASE = {
       '「楼上那家天天半夜拖东西，能不能管管？」',
       '发消息的人，住在 501。',
       '你退出了那个群。',
-      '退出之前，你看到群里的人数：24。',
-    ], explain: '你选择离开。可 501 从来不是一个地址，是一个位置。你走了，位置还在，总会有人填进来——群里那个 24，就是他回来了，而你成了那个偶尔被提起的「上一个」。' },
+      '你退出之前，群里是 23 人。',
+    ], explain: '你选择离开。可 501 从来不是一个地址，是一个位置。你走了，位置还在，总会有人填进来——群里多出来的那个 1，就是他回来了，而你成了那个偶尔被提起的「上一个」。' },
     D: { title: '回到床上', lines: [
       '你把盖板合上，把锁挂回去。',
       '你躺回床上，闭上眼睛。',
@@ -553,10 +566,64 @@ window.CASE = {
     details: [
       '你摸到的震动，和他挪东西的节奏是同一个。',
       '监控里 03:12 下楼的人，电梯没动——他走楼梯，只走到二楼就消失了。',
-      '群人数在你搬进来后一直是 23，第二天变成 24，第三天又变回 23。',
+      '群人数从 23 变成 22。你数了三遍，楼里还是那么多户。',
       '警察那份登记表下面，「第 4 次了」是红笔写的。',
       '相框里的照片是你——因为那本来就是你买来挂自己照片的。',
     ],
     conclusion: '这不是鬼故事。是一个人，住进了你头顶 60 厘米的地方。',
   },
+};
+
+/* ---- 本作引擎配置：把《夹层》0.1 的行为原样锁住 ---- */
+window.CASE.config = {
+  saveKey: 'jiaceng.save.v3',
+  legacyKeys: ['jiaceng.save.v2'],
+  devName: '林秋',
+  startScreen: 'title',
+  reviewScreen: 'review',
+  endingPrefix: 'end-',
+  afterTitle: 'n0',
+  gateNext: 'hatch1',
+  listenHit: 68,
+  creep: '他睡得很沉|别抬头|他在上面|你终于|就在你头顶|新来的年轻人|他一直在|没有人住|在给你腾地方',
+  monitor: { from: 14, to: 17.5, max: 24, speed: 1.5, step: 0.5 },
+};
+
+window.CASE.ui = {
+  tensionAlert: '他注意到你了',
+  namingPrompt: '在开始之前，先告诉我——你是谁？',
+  namingYouAre: '你就是',
+  namingPlaceholder: '名字',
+  namingHint: '不填也行，故事里会用「你」称呼你。',
+  namingStart: '开始搬家',
+  gateTitle: '主卧 · 检修口',
+  gateBtn: '开锁',
+  gatePlaceholder: '····',
+  gateHintPrefix: '提示：',
+  finaleKicker: '终局',
+  endingKicker: '结局',
+  endingReview: '看看这间屋子',
+  endingRestart: '再来一夜',
+  reviewKicker: '复盘',
+  reviewTitle: '这间屋子',
+  reviewDetails: '你可能漏掉的细节',
+  reviewBack: '回到结局',
+  reviewRestart: '重新开始',
+  titleStart: '开始',
+  titleContinue: '继续',
+  titleRestart: '重新开始',
+  titleNote: '建议戴耳机 · 进度自动保存',
+  settingsTitle: '设置',
+  volume: '音量',
+  creepLabel: '文字恐怖谷',
+  creepSizes: ['小', '中', '大'],
+  settingsNote: '音量 0 即静音。文字效果影响惊吓句的字号与抖动幅度。',
+  close: '关上',
+  savesTitle: '存档 · 最多 4 个',
+  savesNote: '读取会回到存档时的场景，不会丢失当前进度文件（自动存档仍在）。',
+  slotLabel: '存档 {n}',
+  empty: '空',
+  save: '存',
+  load: '读',
+  del: '删',
 };

@@ -2,21 +2,75 @@
   'use strict';
 
   const D = window.CASE;
-  const KEY = 'jiaceng.save.v3';
+  const CFG = Object.assign({
+    saveKey: 'wig.save.v1',
+    legacyKeys: [],
+    devName: '旅人',
+    startScreen: 'title',
+    reviewScreen: 'review',
+    endingPrefix: 'end-',
+    afterTitle: 'n0',
+    gateNext: '',
+    listenHit: 68,
+    creep: '',
+    monitor: { from: 14, to: 17.5, max: 24, speed: 1.5 },
+  }, D.config || {});
+  const KEY = CFG.saveKey;
+  const UI = Object.assign({
+    hudTitle: '',
+    tensionAlert: '它有反应了',
+    savesBtn: '存档', settingsBtn: '设置',
+    settingsTitle: '设置',
+    volume: '音量',
+    creepLabel: '文字效果',
+    creepSizes: ['小', '中', '大'],
+    settingsNote: '音量 0 即静音。',
+    close: '关上',
+    savesTitle: '存档 · 最多 4 个',
+    savesNote: '',
+    slotLabel: '存档 {n}',
+    empty: '空',
+    save: '存', load: '读', del: '删',
+    namingPrompt: '在开始之前，先告诉我——你是谁？',
+    namingYouAre: '你就是',
+    namingPlaceholder: '名字',
+    namingHint: '不填也行。',
+    namingStart: '开始',
+    gateTitle: '密码锁',
+    gateBtn: '开锁',
+    gatePlaceholder: '····',
+    gateHintPrefix: '提示：',
+    finaleKicker: '终局',
+    endingKicker: '结局',
+    endingReview: '回头看看',
+    endingRestart: '重新开始',
+    reviewKicker: '复盘',
+    reviewTitle: '复盘',
+    reviewDetails: '可能错过的细节',
+    reviewBack: '回到结局',
+    reviewRestart: '重新开始',
+    titleStart: '开始',
+    titleContinue: '继续',
+    titleRestart: '重新开始',
+    titleNote: '进度自动保存',
+    monitorKicker: '回放',
+    monitorSkip: '快进 30 秒',
+    leave: '离开',
+  }, D.ui || {});
   const app = document.getElementById('app');
   const modalRoot = document.getElementById('modal-root');
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const txt = (s) => esc(s).replace(/\n/g, '<br>');
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const nowHM = () => new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-  const CREEPY = /他睡得很沉|别抬头|他在上面|你终于|就在你头顶|新来的年轻人|他一直在|没有人住|在给你腾地方/;
+  const CREEPY = CFG.creep ? new RegExp(CFG.creep) : /(?!)/;
 
   const SCENES = {};
   D.scenes.forEach((s) => { SCENES[s.id] = s; });
 
   function fresh() {
     return {
-      scene: 'title', name: '', nameSet: false, volume: 55, effects: 2, tension: 0, flags: [],
+      scene: CFG.startScreen, name: '', nameSet: false, volume: 55, effects: 2, tension: 0, flags: [],
       monitorSeen: false, ending: null, startedAt: 0, gateTries: 0, round: 0, listenScene: '', hintSeen: false,
     };
   }
@@ -31,12 +85,12 @@
     const raw = localStorage.getItem(KEY);
     if (raw) { const s = JSON.parse(raw); if (s && s.v === 3 && s.state) S = Object.assign(fresh(), s.state); }
   } catch (e) {}
-  try { localStorage.removeItem('jiaceng.save.v2'); } catch (e) {}
+  (CFG.legacyKeys || []).forEach((k) => { try { localStorage.removeItem(k); } catch (e) {} });
 
   const params = new URLSearchParams(location.search);
   if (params.get('fresh')) { try { localStorage.removeItem(KEY); } catch (e) {} S = fresh(); }
   const dev = params.get('dev');
-  if (dev) { devMode = true; S = Object.assign(fresh(), { scene: dev, name: '林秋' }); }
+  if (dev) { devMode = true; S = Object.assign(fresh(), { scene: dev, name: CFG.devName }); }
 
   function persist() { if (devMode) return; try { localStorage.setItem(KEY, JSON.stringify({ v: 3, state: S })); } catch (e) {} }
 
@@ -61,6 +115,7 @@
     },
     resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
     setVolume(v) {
+      const wasMuted = this.muted;
       this.muted = v <= 0;
       if (!this.ctx) return;
       const g = Math.max(0.0001, (v / 100) * 0.62);
@@ -69,9 +124,15 @@
         this.master.gain.linearRampToValueAtTime(g, this.ctx.currentTime + 0.12);
       } catch (e) {}
       if (v <= 0) { this.stopBgm(); this.static(false); this.heartbeat(false); this.stopDrone(); }
+      else if (wasMuted) {
+        if (this.lastKind) this.bgm(this.lastKind);
+        const sc = SCENES[S.scene];
+        if (sc && sc.type === 'monitor') this.static(true);
+      }
     },
 
     bgm(kind) {
+      if (kind) this.lastKind = kind;
       if (this.currentBgm === kind && this.bgmNodes) return;
       this.currentBgm = kind || null;
       if (!this.ctx || this.muted) return;
@@ -253,19 +314,19 @@
 
   function soundBtn() {
     return `<div class="tool-dock">
-      <button class="tool-btn" data-act="open-saves">存档</button>
-      <button class="tool-btn" data-act="open-settings">设置</button>
+      <button class="tool-btn" data-act="open-saves">${esc(UI.savesBtn)}</button>
+      <button class="tool-btn" data-act="open-settings">${esc(UI.settingsBtn)}</button>
     </div>`;
   }
 
   function openSettings() {
     const modal = document.getElementById('modal-root');
     modal.innerHTML = `<div class="modal-back" data-close="1"><div class="modal">
-      <h2>设置</h2>
-      <label class="set-row"><span>音量</span><input type="range" id="vol" min="0" max="100" value="${S.volume}"><b id="vol-val">${S.volume}</b></label>
-      <label class="set-row"><span>文字恐怖谷</span><input type="range" id="fx" min="1" max="3" step="1" value="${S.effects}"><b id="fx-val">${['小','中','大'][S.effects - 1]}</b></label>
-      <p class="set-note">音量 0 即静音。文字效果影响闹鬼句的字号与抖动幅度。</p>
-      <button class="btn ghost" data-act="close-modal">关上</button>
+      <h2>${esc(UI.settingsTitle)}</h2>
+      <label class="set-row"><span>${esc(UI.volume)}</span><input type="range" id="vol" min="0" max="100" value="${S.volume}"><b id="vol-val">${S.volume}</b></label>
+      <label class="set-row"><span>${esc(UI.creepLabel)}</span><input type="range" id="fx" min="1" max="3" step="1" value="${S.effects}"><b id="fx-val">${UI.creepSizes[S.effects - 1]}</b></label>
+      <p class="set-note">${esc(UI.settingsNote)}</p>
+      <button class="btn ghost" data-act="close-modal">${esc(UI.close)}</button>
     </div></div>`;
     const vol = document.getElementById('vol'), volVal = document.getElementById('vol-val');
     const fx = document.getElementById('fx'), fxVal = document.getElementById('fx-val');
@@ -277,7 +338,7 @@
     });
     fx.addEventListener('input', () => {
       S.effects = Number(fx.value);
-      fxVal.textContent = ['小', '中', '大'][S.effects - 1];
+      fxVal.textContent = UI.creepSizes[S.effects - 1];
       applyEffects();
       persist();
     });
@@ -289,7 +350,7 @@
   }
 
   /* ================= 存档 ================= */
-  const SLOT_KEY = 'jiaceng.slots.v1';
+  const SLOT_KEY = CFG.saveKey + '.slots';
   function readSlots() {
     try { return JSON.parse(localStorage.getItem(SLOT_KEY)) || {}; } catch (e) { return {}; }
   }
@@ -299,21 +360,21 @@
     const slots = readSlots();
     const rows = [1, 2, 3, 4].map((i) => {
       const s = slots[i];
-      const label = s ? `${esc(s.sceneTitle || s.scene)} · ${new Date(s.at).toLocaleString('zh-CN')}` : '空';
+      const label = s ? `${esc(s.sceneTitle || s.scene)} · ${new Date(s.at).toLocaleString('zh-CN')}` : esc(UI.empty);
       return `<div class="slot">
-        <div class="slot-info"><b>存档 ${i}</b><span>${label}</span></div>
+        <div class="slot-info"><b>${esc(UI.slotLabel.replace('{n}', i))}</b><span>${label}</span></div>
         <div class="slot-acts">
-          <button class="btn" data-act="save-slot" data-slot="${i}">存</button>
-          <button class="btn" data-act="load-slot" data-slot="${i}" ${s ? '' : 'disabled'}>读</button>
-          <button class="btn" data-act="del-slot" data-slot="${i}" ${s ? '' : 'disabled'}>删</button>
+          <button class="btn" data-act="save-slot" data-slot="${i}">${esc(UI.save)}</button>
+          <button class="btn" data-act="load-slot" data-slot="${i}" ${s ? '' : 'disabled'}>${esc(UI.load)}</button>
+          <button class="btn" data-act="del-slot" data-slot="${i}" ${s ? '' : 'disabled'}>${esc(UI.del)}</button>
         </div>
       </div>`;
     }).join('');
     document.getElementById('modal-root').innerHTML = `<div class="modal-back" data-close="1"><div class="modal">
-      <h2>存档 · 最多 4 个</h2>
-      <p class="set-note">读取会回到存档时的场景，不会丢失当前进度文件（自动存档仍在）。</p>
+      <h2>${esc(UI.savesTitle)}</h2>
+      <p class="set-note">${esc(UI.savesNote)}</p>
       ${rows}
-      <button class="btn ghost" data-act="close-modal">关上</button>
+      <button class="btn ghost" data-act="close-modal">${esc(UI.close)}</button>
     </div></div>`;
   }
 
@@ -367,10 +428,10 @@
   /* ================= 通用 ================= */
   function hud(scene) {
     return `<header class="hud">
-      <div class="hud-title">夹层</div>
+      <div class="hud-title">${esc(UI.hudTitle || D.meta.title)}</div>
       <div class="hud-right">
         <span>${esc((scene && scene.act) || '')}</span>
-        ${S.tension >= 5 ? '<span class="hud-alert">他注意到你了</span>' : ''}
+        ${S.tension >= 5 ? `<span class="hud-alert">${esc(UI.tensionAlert)}</span>` : ''}
       </div>
     </header>`;
   }
@@ -380,14 +441,14 @@
   function namingScreen(scene) {
     return `${hud(scene)}
     <section class="screen story" style="max-width:720px">
-      <p class="act">序</p>
-      <p style="font-size:24px;color:var(--ink)">在开始之前，先告诉我——你是谁？</p>
+      <p class="act">${esc(scene.act || '')}</p>
+      <p style="font-size:24px;color:var(--ink)">${esc(UI.namingPrompt)}</p>
       <div class="name-box" style="justify-content:flex-start;margin-top:26px">
-        <span>你就是</span>
-        <input id="nname" maxlength="8" value="${esc(S.name)}" placeholder="名字" autocomplete="off">
+        <span>${esc(UI.namingYouAre)}</span>
+        <input id="nname" maxlength="8" value="${esc(S.name)}" placeholder="${esc(UI.namingPlaceholder)}" autocomplete="off">
       </div>
-      <p style="color:var(--faint);font-size:14px;margin-top:14px">不填也行，故事里会用「你」称呼你。</p>
-      <div style="margin-top:34px"><button class="btn primary" data-act="set-name">开始搬家</button></div>
+      <p style="color:var(--faint);font-size:14px;margin-top:14px">${esc(UI.namingHint)}</p>
+      <div style="margin-top:34px"><button class="btn primary" data-act="set-name">${esc(UI.namingStart)}</button></div>
     </section>`;
   }
 
@@ -461,7 +522,7 @@
       plan.appendChild(rp); setTimeout(() => rp.remove(), 1000);
 
       const pan = (cx - 50) / 50;
-      if (v >= 68) {
+      if (v >= CFG.listenHit) {
         done = true;
         A.pan(180, pan, 0.7, 0.09);
         const line = scene.hits[(S.round || 0)] || '';
@@ -594,27 +655,31 @@
 
   /* ================= 监控 ================= */
   function monitorScreen(scene) {
+    const intro = scene.intro ? `<p style="color:var(--soft);font-size:17px;margin-bottom:22px">${esc(scene.intro)}</p>` : '';
     return `${hud(scene)}
     <section class="screen" style="max-width:840px">
-      <p class="kicker">${esc(scene.act)} · 回放</p>
-      <p style="color:var(--soft);font-size:17px;margin-bottom:22px">你溜到楼下门卫室。老周睡着了，显示器还亮着。你拖动进度条，停在 02:58。</p>
+      <p class="kicker">${esc(scene.act)}${UI.monitorKicker ? ' · ' + esc(UI.monitorKicker) : ''}</p>
+      ${intro}
       <div class="cctv">
         <canvas id="cctv" width="780" height="440"></canvas>
         <div class="cctv-bar"><span id="cctv-time">02:58:00</span><span class="rec">● REC</span></div>
       </div>
       <div id="cctv-note"></div>
       <div class="cctv-actions">
-        <button class="btn primary" data-act="monitor-skip">快进 30 秒</button>
-        <button class="btn" data-act="next">离开</button>
+        <button class="btn primary" data-act="monitor-skip">${esc(UI.monitorSkip)}</button>
+        <button class="btn" data-act="next">${esc(UI.leave)}</button>
       </div>
     </section>${soundBtn()}`;
   }
 
-  function bindMonitor() {
+  function bindMonitor(scene) {
     const cv = document.getElementById('cctv');
     if (!cv) return;
     const ctx = cv.getContext('2d');
-    const baseSec = 2 * 3600 + 58 * 60;
+    const baseSec = (function (t) {
+      const m = String(t || '02:58').match(/^(\d{1,2}):(\d{2})$/);
+      return m ? Number(m[1]) * 3600 + Number(m[2]) * 60 : 2 * 3600 + 58 * 60;
+    })(scene && scene.baseTime);
     let gameMin = 0, last = performance.now(), jumped = false, frozen = 0;
     A.static(true);
 
@@ -625,9 +690,9 @@
 
     function draw(ts) {
       const dt = (ts - last) / 1000; last = ts;
-      if (frozen > 0) { frozen -= dt; gameMin = 14; }
-      else { gameMin += dt * 1.5; }
-      if (gameMin > 24) gameMin = 24;
+      if (frozen > 0) { frozen -= dt; gameMin = CFG.monitor.from; }
+      else { gameMin += dt * CFG.monitor.speed; }
+      if (gameMin > CFG.monitor.max) gameMin = CFG.monitor.max;
 
       const w = cv.width, h = cv.height;
       ctx.fillStyle = '#060708'; ctx.fillRect(0, 0, w, h);
@@ -648,7 +713,7 @@
       const el = document.getElementById('cctv-time');
       if (el) el.textContent = fmt(baseSec + gameMin * 60);
 
-      if (gameMin >= 14 && gameMin < 17.5) {
+      if (gameMin >= CFG.monitor.from && gameMin < CFG.monitor.to) {
         const cx = 516 + Math.sin(gameMin * 1.7) * 6;
         const cy = 262 + Math.sin(gameMin * 1.1) * 10;
         const sway = Math.sin(gameMin * 1.3) * 0.02;
@@ -705,10 +770,14 @@
           document.body.appendChild(fl);
           setTimeout(() => fl.remove(), 700);
           setTimeout(() => { A.restore(); A.heartbeat(false); }, 1500);
-          if (!S.monitorSeen) {
-            S.monitorSeen = true; persist();
-            const note = document.getElementById('cctv-note');
-            if (note) note.innerHTML = '<p class="hit-text" style="margin-top:14px">画面右下角，楼梯上多了一个人影。<b style="color:var(--red-soft)">红色</b>的，低着头，走得很慢。</p><p class="hit-text" style="margin-top:10px">他从五楼下来，走到二楼，就再也没出现过。同一时间，电梯没有动过。</p>';
+          if (!S.monitorSeen) { S.monitorSeen = true; persist(); }
+          // 每次回放到那一刻都重新给出提示：只显示一次的话，离开或刷新后再回来就拿不到这条线索了
+          const note = document.getElementById('cctv-note');
+          if (note) {
+            const lines = (scene && scene.note) || [];
+            if (lines.length) {
+              note.innerHTML = lines.map((t) => `<p class="hit-text" style="margin-top:14px">${esc(t).replace(/\*\*(.+?)\*\*/g, '<b style="color:var(--red-soft)">$1</b>')}</p>`).join('');
+            }
           }
         }
       }
@@ -719,8 +788,10 @@
     }
     cctvRAF = requestAnimationFrame(draw);
     window.__monitorSkip = () => {
-      if (gameMin < 13.5) gameMin = Math.min(13.9, gameMin + 0.5);
-      else gameMin += 0.2;
+      const m = CFG.monitor;
+      // 第一下直接把带子推到人影那一格，保证「按了就出影子」；之后每按一下再往前挪 step
+      if (gameMin < m.from) { gameMin = m.from + 0.05; return; }
+      gameMin = Math.min(m.max, gameMin + (m.step || 0.5));
     };
   }
 
@@ -730,11 +801,11 @@
     <section class="screen">
       <div class="gate">
         <p class="kicker">${esc(scene.act)}</p>
-        <h2>主卧 · 检修口</h2>
+        <h2>${esc(scene.title || UI.gateTitle)}</h2>
         <p class="desc">${txt(D.gate.prompt)}</p>
         <div class="lock">
-          <input id="code" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="····">
-          <button class="btn primary" data-act="submit-code">开锁</button>
+          <input id="code" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="${esc(UI.gatePlaceholder)}">
+          <button class="btn primary" data-act="submit-code">${esc(UI.gateBtn)}</button>
         </div>
         <p class="gate-msg" id="gate-msg"></p>
         <p class="gate-hint" id="gate-hint"></p>
@@ -746,7 +817,7 @@
     const lines = D.hatch.lines.map((l, i) => `<p class="${CREEPY.test(l) ? 'hit' : ''}" style="animation-delay:${i * 220}ms">${txt(l)}</p>`).join('');
     return `${hud(scene)}
     <section class="screen">
-      <p class="kicker">${esc(scene.act)} · 上面</p>
+      <p class="kicker">${esc(scene.act)}${scene.title ? ' · ' + esc(scene.title) : ''}</p>
       <div class="hatch-lines">${lines}</div>
       <div style="margin-top:40px"><button class="btn primary" data-act="next">从椅子上下来</button></div>
     </section>${soundBtn()}`;
@@ -761,7 +832,7 @@
     <section class="screen story">
       <p class="act">${esc(scene.act)}</p>
       ${lines}
-      <p class="creepy" style="margin-top:30px">你抬起头，看见墙上那台老钟——它走的也是 ${esc(date)}。</p>
+      ${D.metaScene.reveal ? `<p class="creepy" style="margin-top:30px">${txt(D.metaScene.reveal.replace('{date}', date))}</p>` : ''}
       <div style="margin-top:40px"><button class="btn primary" data-act="next">继续</button></div>
     </section>${soundBtn()}`;
   }
@@ -770,7 +841,7 @@
     return `${hud(scene)}
     <section class="screen">
       <div class="finale">
-        <p class="kicker">终局</p>
+        <p class="kicker">${esc(scene.kicker || UI.finaleKicker)}</p>
         <h2>${esc(D.finale.question)}</h2>
         <div class="opts">
           ${D.finale.options.map((o) => `<button class="opt" data-act="ending" data-id="${o.id}"><span>${esc(o.text)}</span><small>${esc(o.hint)}</small></button>`).join('')}
@@ -784,47 +855,47 @@
     const lines = e.lines.map((l, i) => `<p style="animation-delay:${i * 260}ms">${txt(withName(l))}</p>`).join('');
     const explainLines = (e.explain || '').split('。').filter(Boolean).map((s, i) => `<p class="explain-line" style="animation-delay:${i * 420}ms">${txt(s + '。')}</p>`).join('');
     return `<section class="ending"><div class="ending-inner">
-      <p class="kicker">结局 ${esc(S.ending || 'A')}</p>
+      <p class="kicker">${esc(UI.endingKicker)} ${esc(S.ending || 'A')}</p>
       <h1 class="flicker">${esc(e.title)}</h1>
       ${lines}
       ${e.explain ? `<div class="explain-wrap"><button class="btn ghost" data-act="explain">这个结局是什么意思？</button><div class="explain-box" id="explain-box" hidden>${explainLines}</div></div>` : ''}
       <div class="ending-actions">
-        <button class="btn" data-act="to-review">看看这间屋子</button>
-        <button class="btn" data-act="restart">再来一夜</button>
+        <button class="btn" data-act="to-review">${esc(UI.endingReview)}</button>
+        <button class="btn" data-act="restart">${esc(UI.endingRestart)}</button>
       </div>
     </div></section>`;
   }
 
   function reviewScreen() {
-    return `${hud({ act: '复盘' })}
+    return `${hud({ act: UI.reviewKicker })}
     <section class="screen">
-      <p class="kicker">复盘</p>
-      <h2 style="font-size:30px;letter-spacing:.16em;margin-bottom:10px">这间屋子</h2>
+      <p class="kicker">${esc(UI.reviewKicker)}</p>
+      <h2 style="font-size:30px;letter-spacing:.16em;margin-bottom:10px">${esc(D.review.title || UI.reviewTitle)}</h2>
       <div>${D.review.facts.map((f) => `<div class="fact"><span class="fact-id">${f.id}</span><p>${esc(f.text)}</p></div>`).join('')}</div>
-      <h3 style="font-size:20px;margin:38px 0 0;letter-spacing:.12em">你可能漏掉的细节</h3>
+      <h3 style="font-size:20px;margin:38px 0 0;letter-spacing:.12em">${esc(UI.reviewDetails)}</h3>
       <ul class="detail-list">${D.review.details.map((d) => `<li>${esc(d)}</li>`).join('')}</ul>
       <p class="conclusion">${esc(D.review.conclusion)}</p>
       <div style="margin-top:32px;display:flex;gap:12px;flex-wrap:wrap">
-        <button class="btn" data-act="back-ending">回到结局</button>
-        <button class="btn primary" data-act="restart">重新开始</button>
+        <button class="btn" data-act="back-ending">${esc(UI.reviewBack)}</button>
+        <button class="btn primary" data-act="restart">${esc(UI.reviewRestart)}</button>
       </div>
     </section>`;
   }
 
   function titleScreen() {
-    const hasSave = S.scene !== 'title';
+    const hasSave = S.scene !== CFG.startScreen;
     return `<section class="title-screen">
-      <div class="door-number">第 5 层 · 501</div>
-      <div class="big" aria-hidden="true">501</div>
+      <div class="door-number">${esc(D.meta.door || '')}</div>
+      <div class="big" aria-hidden="true">${esc(D.meta.big || '')}</div>
       <div class="title-inner">
-        <h1 class="flicker">夹层</h1>
-        <p class="sub">你楼上是天台。那声音是谁？</p>
-        <p class="meta">${esc(D.meta.minutes)} · 网页解谜 · 心理惊悚</p>
+        <h1 class="flicker">${esc(D.meta.title)}</h1>
+        <p class="sub">${esc(D.meta.pitch || D.meta.subtitle || '')}</p>
+        <p class="meta">${esc(D.meta.minutes)}${D.meta.kind ? ' · ' + esc(D.meta.kind) : ''}</p>
         <div class="title-actions">
-          <button class="btn primary lg" data-act="start">${hasSave ? '继续' : '开始'}</button>
+          <button class="btn primary lg" data-act="start">${hasSave ? esc(UI.titleContinue) : esc(UI.titleStart)}</button>
           ${hasSave ? '<button class="btn" data-act="restart">重新开始</button>' : ''}
         </div>
-        <p class="title-note">建议戴耳机 · 进度自动保存 · v${esc(D.meta.version)}</p>
+        <p class="title-note">${esc(UI.titleNote)} · v${esc(D.meta.version)}</p>
       </div>
     </section>${soundBtn()}`;
   }
@@ -841,12 +912,12 @@
     if (S.volume <= 0) { A.stopBgm(); }
     else if (!A.ctx) { /* 首次点击后才初始化 */ }
 
-    if (S.scene === 'title') { app.innerHTML = titleScreen(); lastScene = 'title'; return; }
-    if (S.scene === 'review') { app.innerHTML = reviewScreen(); window.scrollTo(0, 0); lastScene = 'review'; return; }
-    if (S.scene.indexOf('end-') === 0) { app.innerHTML = endingScreen(); window.scrollTo(0, 0); lastScene = S.scene; return; }
+    if (S.scene === CFG.startScreen) { app.innerHTML = titleScreen(); lastScene = CFG.startScreen; return; }
+    if (S.scene === CFG.reviewScreen) { app.innerHTML = reviewScreen(); window.scrollTo(0, 0); lastScene = CFG.reviewScreen; return; }
+    if (S.scene.indexOf(CFG.endingPrefix) === 0) { app.innerHTML = endingScreen(); window.scrollTo(0, 0); lastScene = S.scene; return; }
 
     const scene = SCENES[S.scene];
-    if (!scene) { S.scene = 'title'; return render(); }
+    if (!scene) { S.scene = CFG.startScreen; return render(); }
 
     if (scene.type === 'listen' && S.listenScene !== scene.id) { S.round = 0; S.listenScene = scene.id; src = null; }
 
@@ -863,7 +934,7 @@
     else A.bgm(null);
     if (scene.type === 'listen') { bindListen(scene); showHeadphoneHint(); A.creak(); }
     if (scene.type === 'doc') A.paper();
-    if (scene.type === 'monitor') bindMonitor();
+    if (scene.type === 'monitor') bindMonitor(scene);
     if (scene.type === 'gate') {
       const code = document.getElementById('code');
       if (code) { code.focus(); code.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitCode(); }); }
@@ -876,11 +947,12 @@
     const value = (input && input.value ? input.value : '').trim();
     const msg = document.getElementById('gate-msg');
     const hint = document.getElementById('gate-hint');
+    const cur = SCENES[S.scene] || {};
     if (!value) return;
-    if (value === D.gate.answers[0]) { A.chime(); return go('hatch1'); }
+    if (value === D.gate.answers[0]) { A.chime(); return go(CFG.gateNext || cur.next || ''); }
     S.gateTries += 1;
     if (msg) msg.textContent = D.gate.wrong;
-    if (hint && S.gateTries >= 2) hint.textContent = '提示：' + D.gate.hint;
+    if (hint && S.gateTries >= 2) hint.textContent = UI.gateHintPrefix + D.gate.hint;
     if (input) { input.value = ''; input.focus(); }
     A.pan(83, 0, 0.3, 0.06);
   }
@@ -892,12 +964,27 @@
   }
 
   function restart() {
-    S = fresh(); src = null; chatToken += 1;
+    S = Object.assign(fresh(), { volume: S.volume, effects: S.effects }); src = null; chatToken += 1;
     if (cctvRAF) { cancelAnimationFrame(cctvRAF); cctvRAF = null; }
     persist(); render();
   }
 
+  // 刷新页面后从自动存档接着玩时，AudioContext 还没建起来。
+  // 浏览器要求「用户先动一下」，所以在第一次点击/按键时补建，并把当前幕的背景音补上。
+  function ensureAudio() {
+    if (A.ctx) return;
+    try {
+      A.init(); A.resume(); A.setVolume(S.volume);
+      const sc = SCENES[S.scene];
+      if (!sc) return;
+      if (sc.type === 'monitor') A.static(true);
+      else if (sc.type === 'listen') A.bgm('night');
+      else if (sc.type === 'text' && sc.bgm === 'warm') A.bgm('warm');
+    } catch (e) {}
+  }
+
   document.addEventListener('click', (e) => {
+    ensureAudio();
     if (e.target.classList && e.target.classList.contains('modal-back')) { modalRoot.innerHTML = ''; return; }
     const el = e.target.closest('[data-act]');
     if (!el) return;
@@ -905,7 +992,7 @@
 
     if (act === 'start') {
       A.init(); A.resume(); A.setVolume(S.volume);
-      if (S.scene === 'title') { S.scene = 'n0'; S.startedAt = Date.now(); }
+      if (S.scene === CFG.startScreen) { S.scene = CFG.afterTitle; S.startedAt = Date.now(); }
       persist(); render(); return;
     }
     if (act === 'set-name') {
@@ -935,15 +1022,16 @@
     if (act === 'choose') return chooseChat(scene, Number(el.dataset.i));
     if (act === 'submit-code') return submitCode();
     if (act === 'monitor-skip') { if (window.__monitorSkip) window.__monitorSkip(); return; }
-    if (act === 'ending') { S.ending = el.dataset.id; S.scene = 'end-' + el.dataset.id; persist(); return render(); }
-    if (act === 'to-review') { S.scene = 'review'; persist(); return render(); }
-    if (act === 'back-ending') { S.scene = 'end-' + (S.ending || 'A'); persist(); return render(); }
+    if (act === 'ending') { S.ending = el.dataset.id; S.scene = CFG.endingPrefix + el.dataset.id; persist(); return render(); }
+    if (act === 'to-review') { S.scene = CFG.reviewScreen; persist(); return render(); }
+    if (act === 'back-ending') { S.scene = CFG.endingPrefix + (S.ending || 'A'); persist(); return render(); }
   });
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') modalRoot.innerHTML = ''; });
+  document.addEventListener('keydown', (e) => { ensureAudio(); if (e.key === 'Escape') modalRoot.innerHTML = ''; });
 
   if (devMode || params.get('debug')) {
-    window.__JC = { get src() { return src; }, get S() { return S; }, go, audio: A };
+    const DBG = { get src() { return src; }, get S() { return S; }, go, audio: A };
+    window.__WIG = DBG; window.__JC = DBG;  // __JC 是《夹层》旧代码里的名字，留着兼容
   }
   render();
 })();
