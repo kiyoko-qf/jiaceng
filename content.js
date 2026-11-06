@@ -3,7 +3,7 @@ window.CASE = {
   meta: {
     title: '夹层',
     subtitle: '501 的第一夜',
-    version: '0.1',
+    version: '0.1.3',
     minutes: '约 40 分钟',
     door: '第 5 层 · 501',
     big: '501',
