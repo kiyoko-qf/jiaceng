@@ -132,7 +132,9 @@
     },
 
     bgm(kind) {
-      if (kind) this.lastKind = kind;
+      // 切到没有背景音的场景时清掉 lastKind，避免用户在无声场景把音量从 0 拉回来时
+      // 又把上一个场景的底噪放出来。
+      this.lastKind = kind || null;
       if (this.currentBgm === kind && this.bgmNodes) return;
       this.currentBgm = kind || null;
       if (!this.ctx || this.muted) return;
@@ -192,7 +194,7 @@
     unmute() {
       this.muted = false;
       if (!this.ctx) return;
-      try { this.master.gain.cancelScheduledValues(this.ctx.currentTime); this.master.gain.linearRampToValueAtTime(0.42, this.ctx.currentTime + 0.3); } catch (e) {}
+      try { this.master.gain.cancelScheduledValues(this.ctx.currentTime); this.master.gain.linearRampToValueAtTime(Math.max(0.0001, (S.volume / 100) * 0.62), this.ctx.currentTime + 0.3); } catch (e) {}
     },
     paper() {
       if (!this.ctx || this.muted) return;
@@ -295,7 +297,10 @@
     },
     restore() {
       if (!this.ctx) return;
-      try { this.master.gain.linearRampToValueAtTime(0.42, this.ctx.currentTime + 0.6); } catch (e) {}
+      try {
+        this.master.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.master.gain.linearRampToValueAtTime(Math.max(0.0001, (S.volume / 100) * 0.62), this.ctx.currentTime + 0.6);
+      } catch (e) {}
     },
     pan(freq, pan, dur, vol) {
       if (!this.ctx || this.muted) return;
@@ -465,13 +470,20 @@
     </section>${soundBtn()}`;
   }
 
-  function newSource() {
+  function newSource(scene) {
+    // 优先用剧本写死的锚点：文字里说"客厅偏左、靠近阳台"，声源就必须真的在那儿，
+    // 否则玩家按文案找反而永远找不到。没有锚点的旧剧本才退回随机房间。
+    const spot = scene && scene.spots && scene.spots[S.round || 0];
+    if (spot) {
+      src = { x: spot[0] + (Math.random() - 0.5) * 36, y: spot[1] + (Math.random() - 0.5) * 36 };
+      return;
+    }
     const room = D.plan.rooms[Math.floor(Math.random() * D.plan.rooms.length)];
     src = { x: room.x + 50 + Math.random() * (room.w - 100), y: room.y + 50 + Math.random() * (room.h - 100) };
   }
 
   function listenScreen(scene) {
-    if (!src) newSource();
+    if (!src) newSource(scene);
     const rooms = D.plan.rooms.map((r) => `<div class="room" style="left:${(r.x / 1000) * 100}%;top:${(r.y / 600) * 100}%;width:${(r.w / 1000) * 100}%;height:${(r.h / 600) * 100}%">${esc(r.name)}</div>`).join('');
     return `${hud(scene)}
     <section class="screen">
@@ -492,6 +504,7 @@
     if (!plan || !src) return;
     meter.style.setProperty('--level', '0%');
     let done = false;
+    let misses = 0;
     const rect = () => plan.getBoundingClientRect();
     const point = (e) => (e.touches && e.touches[0]) ? e.touches[0] : e;
 
@@ -531,10 +544,20 @@
         if (area) area.innerHTML = `<div class="hit-text">${esc(line)}</div>
           <div style="margin-top:24px"><button class="btn primary" data-act="listen-next">${last ? '离开椅子' : '再听一次'}</button></div>`;
       } else {
-        S.tension += 1;
+        misses += 1;
+        S.tension = Math.min(9, S.tension + 1);
         A.pan(90, pan, 0.4, 0.08);
         const area = document.getElementById('hit-area');
-        if (area) area.innerHTML = `<div class="hit-text bad">太远了。它停了一下，像是在听你。</div>`;
+        const rp2 = rect();
+        const tapX = ((e.clientX - rp2.left) / rp2.width) * 1000;
+        const lines = [
+          '太远了。它停了一下，像是在听你。',
+          '太远了。震动还在，只是不在你按的地方。',
+          '太远了。把手掌贴住，别急着按——先感觉。',
+        ];
+        let line = lines[Math.min(misses - 1, lines.length - 1)];
+        if (misses >= 4) line += ` 声音还更靠${src.x < tapX ? '左' : '右'}一些。`;
+        if (area) area.innerHTML = `<div class="hit-text bad">${esc(line)}</div>`;
         persist();
       }
     }
@@ -555,7 +578,7 @@
     <section class="screen" style="max-width:820px">
       <p class="kicker">${esc(scene.act)} · 手机</p>
       <div class="chat-window">
-        <div class="chat-head"><b>${esc(t.title)}</b><span>${t.count} 人</span></div>
+        <div class="chat-head"><b>${esc(t.title)}</b><span>${t.kind === 'group' ? t.count + ' 人' : '私聊'}</span></div>
         <div class="chat-body" id="chat-body"></div>
         <div class="choices" id="choices" style="display:none"></div>
       </div>
@@ -608,6 +631,14 @@
     }
   }
 
+  function threadClock(t) {
+    const msgs = (t && t.messages) || [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].who !== '系统' && msgs[i].time) return msgs[i].time;
+    }
+    return '00:00';
+  }
+
   async function chooseChat(scene, idx) {
     const t = D.threads[scene.thread];
     const c = t.choices[idx];
@@ -616,7 +647,7 @@
     if (!body || !choices) return;
     choices.style.display = 'none';
     const token = ++chatToken;
-    body.appendChild(msgEl({ who: '你', time: nowHM(), text: c.text.replace(/^「|」$/g, ''), mine: true }));
+    body.appendChild(msgEl({ who: '你', time: threadClock(t), text: c.text.replace(/^「|」$/g, ''), mine: true }));
     body.scrollTop = body.scrollHeight;
     await sleep(380);
     for (const m of c.reply) {
@@ -628,7 +659,7 @@
       body.scrollTop = body.scrollHeight;
       await sleep(420);
     }
-    S.tension += c.tension || 0;
+    S.tension = Math.min(9, S.tension + (c.tension || 0));
     if (c.flag) S.flags.push(c.flag);
     persist();
     choices.style.display = 'flex';
@@ -796,6 +827,12 @@
   }
 
   /* ================= 其它屏 ================= */
+  function gateHintFor(tries) {
+    const list = D.gate.hints || (D.gate.hint ? [D.gate.hint] : []);
+    if (tries < 2 || !list.length) return '';
+    return UI.gateHintPrefix + list[Math.min(tries - 2, list.length - 1)];
+  }
+
   function gateScreen(scene) {
     return `${hud(scene)}
     <section class="screen">
@@ -808,7 +845,7 @@
           <button class="btn primary" data-act="submit-code">${esc(UI.gateBtn)}</button>
         </div>
         <p class="gate-msg" id="gate-msg"></p>
-        <p class="gate-hint" id="gate-hint"></p>
+        <p class="gate-hint" id="gate-hint">${esc(gateHintFor(S.gateTries || 0))}</p>
       </div>
     </section>${soundBtn()}`;
   }
@@ -827,12 +864,14 @@
     const d = new Date();
     const date = d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
     const time = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-    const lines = D.metaScene.lines.map((l, i) => `<p style="animation-delay:${i * 220}ms">${txt(l.replace('{date}', date).replace('{time}', time))}</p>`).join('');
+    const years = Math.max(7, d.getFullYear() - 2019);
+    const fill = (s) => String(s).replace('{date}', date).replace('{time}', time).replace(/\{years\}/g, years);
+    const lines = D.metaScene.lines.map((l, i) => `<p style="animation-delay:${i * 220}ms">${txt(fill(l))}</p>`).join('');
     return `${hud(scene)}
     <section class="screen story">
       <p class="act">${esc(scene.act)}</p>
       ${lines}
-      ${D.metaScene.reveal ? `<p class="creepy" style="margin-top:30px">${txt(D.metaScene.reveal.replace('{date}', date))}</p>` : ''}
+      ${D.metaScene.reveal ? `<p class="creepy" style="margin-top:30px">${txt(fill(D.metaScene.reveal))}</p>` : ''}
       <div style="margin-top:40px"><button class="btn primary" data-act="next">继续</button></div>
     </section>${soundBtn()}`;
   }
@@ -952,7 +991,7 @@
     if (value === D.gate.answers[0]) { A.chime(); return go(CFG.gateNext || cur.next || ''); }
     S.gateTries += 1;
     if (msg) msg.textContent = D.gate.wrong;
-    if (hint && S.gateTries >= 2) hint.textContent = UI.gateHintPrefix + D.gate.hint;
+    if (hint) hint.textContent = gateHintFor(S.gateTries);
     if (input) { input.value = ''; input.focus(); }
     A.pan(83, 0, 0.3, 0.06);
   }
